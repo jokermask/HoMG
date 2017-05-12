@@ -1,6 +1,17 @@
-path = './mall_dataset/frames'; 
-numofImages = 200 ;
+path = './mall_dataset/frames/'; 
+numofImages = 20 ;
+image_cells = cell(numofImages) ;
 for i=1:numofImages
-    I=imread([str,num2str(i),'.jpg']); %依次读取每一幅图像
-    %todo 存到cell 灰度转化 s't'r
+    temp = i ;
+    while
+    if i < 1000
+        prefix = strcat('seq_000',num2str(i)) ;
+    else
+        prefix = strcat('seq_00',num2str(i)) ;
+    end
+    I=imread([path,prefix,'.jpg']); %依次读取每一幅图像
+    I=rgb2gray(I);
+    imshow(I) ;
+    image_cells{i} = I ;
+    %todo 存到cell 灰度转化 strip？
 end

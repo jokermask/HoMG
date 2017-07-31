@@ -2,7 +2,7 @@
 close all ;
 load('./mall_dataset/mall_gt.mat')
 path = './mall_dataset/frames/'; 
-numofImages = 100 ;
+numofImages = 1000 ;
 image_cells = cell(numofImages,1) ;
 E = cell(numofImages,1) ;
 Em = cell(numofImages,1) ;
@@ -13,6 +13,7 @@ Ww = 5 ;%人宽
 defualtLenOfList = 5 ;%前景差分时默认的队列长度
 var_t = 5 ; %方差阈值
 dif_t = 60 ;%差分阈值
+total_fold = 5 ;
 
 %kenel
 gaussian_kenel = fspecial('gaussian',3,0.5) ;
@@ -74,38 +75,51 @@ for i=1:numofImages
         %imshow(G) ;
     end
 end
+E{1}.hog = E{2}.hog ;
 
-%train
-train_data_num = floor((numofImages-1)*0.75) ;
-test_data_num = numofImages - 1 - train_data_num ;
-train_cell_x = cell(train_data_num,1) ;
-test_cell_x = cell(test_data_num,1) ;
-train_data_y = zeros(train_data_num,1) ;
-test_data_y = zeros(test_data_num,1) ;
-train_i = 1 ;
-test_i = 1 ;
-for i=2:numofImages
-    temp_x = E{i}.hog ;
-%     [pc,score,latent,tsquare] = princomp(temp_x) ;
-%     myans = cumsum(latent)./sum(latent) ;
-%     disp(sum((myans<0.95))) ;
-%     temp_x = score(:,1:54) ;
-    if i <= train_data_num+1
-        train_cell_x{train_i} = temp_x(:)' ;
-        train_data_y(train_i,:) = count(i) ;
-        train_i = train_i + 1 ;
-    else
-        test_cell_x{test_i} = temp_x(:)' ;
-        test_data_y(test_i) = count(i) ;
-        test_i = test_i + 1 ;
+
+% 5-fold cross-validation
+%todo 第一个样本怎么办？
+mae = 0 ;
+for fold=1:total_fold
+    
+    train_data_num = floor(numofImages/total_fold*(total_fold-1)) ;
+    test_data_num = numofImages - train_data_num ; 
+    %train
+    test_data_start = floor((numofImages)*(fold-1)/total_fold)+1 ;
+    train_cell_x = cell(train_data_num,1) ;
+    test_cell_x = cell(test_data_num,1) ;
+    train_data_y = zeros(train_data_num,1) ;
+    test_data_y = zeros(test_data_num,1) ;
+    train_i = 1 ;
+    test_i = 1 ;
+    for i=1:numofImages
+            
+        temp_x = E{i}.hog ;
+    %     [pc,score,latent,tsquare] = princomp(temp_x) ;
+    %     myans = cumsum(latent)./sum(latent) ;
+    %     disp(sum((myans<0.95))) ;
+    %     temp_x = score(:,1:54) ;
+
+        if i>=test_data_start && i< (test_data_start+test_data_num)
+            test_cell_x{test_i} = temp_x(:)' ;
+            test_data_y(test_i) = count(i) ;
+            test_i = test_i + 1 ;
+        else
+            train_cell_x{train_i} = temp_x(:)' ;
+            train_data_y(train_i,:) = count(i) ;
+            train_i = train_i + 1 ;
+        end
+
     end
+
+    %predict
+    train_data_x = cell2mat(train_cell_x) ;
+    test_data_x = cell2mat(test_cell_x) ;
+    disp('predicting') ;
+    ensemble = fitensemble(train_data_x,train_data_y,'LSBoost',100,'Tree','LearnRate',0.1) ;
+    predict_y = predict(ensemble,test_data_x) ;
+    mae = mae + sum(abs(test_data_y-predict_y))/length(test_data_y) ;
+    disp(mae) ;
 end
-
-%predict
-train_data_x = cell2mat(train_cell_x) ;
-test_data_x = cell2mat(test_cell_x) ;
-disp('predicting') ;
-ensemble = fitensemble(train_data_x,train_data_y,'LSBoost',100,'Tree','LearnRate',0.1) ;
-predict_y = predict(ensemble,test_data_x) ;
-disp(sum(abs(test_data_y-predict_y)./test_data_y)/length(test_data_y)) ;
-
+disp(mae/5) ;
